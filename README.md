@@ -1,6 +1,6 @@
 # Reddit client with ReactJS
 
-This page gets from Reddit the ReactJS thread and displays its posts. Posts can be clicked to display, or hide, their comments.
+This website gets the ReactJS's thread from Reddit and displays its posts. Posts can be clicked to display, or hide, their comments.
 
 Comments can be sorted if there are at least 2 of them.
 
