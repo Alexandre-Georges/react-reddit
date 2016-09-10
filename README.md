@@ -2,7 +2,7 @@
 
 This page gets from Reddit the ReactJS thread and displays its posts. Posts can be clicked to display, or hide, their comments.
 
-Comments can be sorted is there are at least 2 of them.
+Comments can be sorted if there are at least 2 of them.
 
 ## Disclaimer
 
