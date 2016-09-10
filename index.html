@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Reddit with ReactJS</title>
+    <meta name="author" content="Alexandre Georges">
+
+    <script src="react.js"></script>
+    <script src="react-dom.js"></script>
+    <script src="browser.min.js"></script>
+
+    <script src="jquery.min.js"></script>
+    <script src="moment.min.js"></script>
+    <script src="bootstrap.min.js"></script>
+
+    <link rel="stylesheet" href="bootstrap.min.css" />
+    <link rel="stylesheet" href="bootstrap-theme.min.css" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style type="text/css">
+        article {
+            margin-top: 20px;
+        }
+        article.odd {
+            background-color: #dcffd1;
+        }
+        article:last-child{
+            margin-bottom: 20px;
+        }
+        section {
+            margin: 10px 0 10px 20px;
+        }
+        h2 {
+            padding: 0;
+            margin: 0;
+            font-size: 1.6em;
+        }
+        p {
+            margin: 0;
+        }
+        #posts {
+            margin: 0 40px;
+            background-color: azure;
+        }
+        .comment-loading-message {
+            position: absolute;
+            left: 50%;
+        }
+        .comment-loading-message > div {
+            position: relative;
+            left: -50%;
+            padding: 20px 200px;
+            margin-top: 20px;
+            background-color: #7cc2ff;
+            z-index: 1;
+            opacity: 0.9;
+            color: white;
+            font-weight: bold;
+        }
+        .generic-info-post {
+            padding-top: 5px;
+            padding-bottom: 10px;
+        }
+        .generic-info-post, .generic-info-comment {
+            color: #bf812f;
+        }
+        .generic-info-post span:nth-child(n+2), .generic-info-comment span:nth-child(n+2) {
+            margin-left: 5px;
+        }
+        .generic-info-post span:nth-child(-n+5), .generic-info-comment span:nth-child(-n+5) {
+            margin-right: 5px;
+        }
+        .post h2 {
+            padding-top: 10px;
+        }
+        .post .text, .post .link {
+            padding-bottom: 10px;
+        }
+        .post.over h2, .post.over .generic-info-post, .post.over .text, .post.over .link {
+            background-color: #46b8da;
+            cursor: pointer;
+        }
+        .comments {
+            border-left: 1px solid #a2a2a2;
+        }
+        .sort-buttons {
+            margin: 5px 0;
+        }
+        .sort-buttons button {
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="reddit"></div>
+
+    <script type="text/babel">
+        var Utils = {
+            REDDIT_REACT_POSTS_URL: 'http://www.reddit.com/r/reactjs.json',
+            getRedditReactComments: function (postId) {
+                return 'http://www.reddit.com/r/reactjs/' + postId + '.json';
+            },
+            sortCommentsBy: function (sort, isAscOrder, comments) {
+                return comments.sort(function (comment1, comment2) {
+                    return isAscOrder ? comment1.data[sort] > comment2.data[sort] : comment1.data[sort] < comment2.data[sort];
+                });
+            },
+            getFormattedDate: function (date) {
+                return moment.unix(date).format('Do of MMMM YYYY [at] HH:mm:ss');
+            }
+        };
+        var Comment = React.createClass({
+            render: function () {
+                var replies;
+                var numberOfReplies = 0;
+                var repliesProp = this.props.comment.data.replies;
+                if (repliesProp && repliesProp.data && repliesProp.data.children && repliesProp.data.children.length > 0) {
+                    replies = <Comments comments={repliesProp.data.children} />
+                    numberOfReplies = repliesProp.data.children.length;
+                }
+                return (
+                    <section className="comment">
+                        <div className="generic-info-comment">
+                            <span>{Utils.getFormattedDate(this.props.comment.data.created_utc)}</span>
+                            -
+                            <span>{numberOfReplies} comment(s)</span>
+                            -
+                            <span>Score {this.props.comment.data.score}</span>
+                            -
+                            <span>By {this.props.comment.data.author}</span>
+                            -
+                            <span>{this.props.comment.data.ups} up(s)</span>
+                            -
+                            <span>{this.props.comment.data.downs} down(s)</span>
+                        </div>
+                        <p>{this.props.comment.data.body}</p>
+                        {replies}
+                    </section>);
+            }
+        });
+        var Comments = React.createClass({
+            getInitialState: function () {
+                return {
+                    comments: this.props.comments,
+                    sort: this.SORT_SCORE,
+                    isAscOrder: false
+                };
+            },
+
+            getSortButtonClasses: function (sort) {
+
+                var classToAppend = 'btn-info';
+                if (this.state.sort === sort) {
+                    if (this.state.isAscOrder === true) {
+                        classToAppend = 'btn-warning';
+                    } else {
+                        classToAppend = 'btn-success';
+                    }
+                }
+
+                return 'btn btn-xs ' + classToAppend;
+            },
+
+            render: function () {
+                var createComment = function (comment) {
+                    return <Comment key={comment.data.id} comment={comment} />;
+                };
+                var sorting;
+                if (this.state.comments.length > 1) {
+                    var scoreClasses = this.getSortButtonClasses(this.SORT_SCORE);
+                    var dateClasses = this.getSortButtonClasses(this.SORT_DATE);
+                    var upsClasses = this.getSortButtonClasses(this.SORT_UPS);
+                    var downsClasses = this.getSortButtonClasses(this.SORT_DOWNS);
+                    sorting = (
+                        <div className="sort-buttons">
+                            Sort comments by
+                            <button type="button" className={scoreClasses} onClick={this.sortCommentsByScore}>Score</button>
+                            <button type="button" className={dateClasses} onClick={this.sortCommentsByDate}>Date</button>
+                            <button type="button" className={upsClasses} onClick={this.sortCommentsByUps}>Ups</button>
+                            <button type="button" className={downsClasses} onClick={this.sortCommentsByDowns}>Downs</button>
+                        </div>
+                    );
+                }
+                return (
+                    <div className="comments-section col-xs-12">
+                        {sorting}
+                        <div className="comments">{this.state.comments.map(createComment)}</div>
+                    </div>);
+            },
+            SORT_SCORE: 'score',
+            SORT_DATE: 'created_utc',
+            SORT_UPS: 'ups',
+            SORT_DOWNS: 'downs',
+            sortCommentsByScore: function () {
+                this.sortCommentsBy(this.SORT_SCORE);
+            },
+            sortCommentsByDate: function () {
+                this.sortCommentsBy(this.SORT_DATE);
+            },
+            sortCommentsByUps: function () {
+                this.sortCommentsBy(this.SORT_UPS);
+            },
+            sortCommentsByDowns: function () {
+                this.sortCommentsBy(this.SORT_DOWNS);
+            },
+            sortCommentsBy: function (sort) {
+                var isAscOrder = false;
+                if (this.state.sort === sort && this.state.isAscOrder === false) {
+                    isAscOrder = true;
+                }
+                this.state.comments = Utils.sortCommentsBy(sort, isAscOrder, this.state.comments);
+                this.state.sort = sort;
+                this.state.isAscOrder = isAscOrder;
+                this.setState(this.state);
+            }
+        });
+        var Post = React.createClass({
+            getInitialState: function () {
+                return {
+                    open: false,
+                    over: false,
+                    loadingComment: false,
+                    comments: []
+                };
+            },
+            render: function () {
+                var classes = 'post row';
+                if (this.state.over) {
+                    classes += ' over';
+                }
+                if (this.props.isOdd === true) {
+                    classes += ' odd';
+                }
+                var loadingComments;
+                if (this.state.loadingComment === true) {
+                    loadingComments = <div className="comment-loading-message"><div>Loading</div></div>;
+                }
+                var text;
+                if (this.props.post.data.selftext) {
+                    text = <p onClick={this.onClick} onMouseOver={this.onOver} onMouseOut={this.onOut} className="text col-xs-12">{this.props.post.data.selftext}</p>;
+                }
+                var link;
+                if (!text && this.props.post.data.url) {
+                    link = <a href={this.props.post.data.url} target="_blank" className="link col-xs-12">{this.props.post.data.url}</a>;
+                }
+                var comments;
+                if (this.state.open) {
+                    comments = <Comments comments={this.state.comments} />;
+                }
+                return (
+                    <article className={classes}>
+                        {loadingComments}
+                        <h2 onClick={this.onClick} onMouseOver={this.onOver} onMouseOut={this.onOut} className="col-xs-12">{this.props.post.data.title}</h2>
+                        <div onClick={this.onClick} onMouseOver={this.onOver} onMouseOut={this.onOut} className="generic-info-post col-xs-12">
+                            <span>{Utils.getFormattedDate(this.props.post.data.created_utc)}</span>
+                            -
+                            <span>{this.props.post.data.num_comments} comment(s)</span>
+                            -
+                            <span>Score {this.props.post.data.score}</span>
+                            -
+                            <span>{this.props.post.data.ups} up(s)</span>
+                            -
+                            <span>{this.props.post.data.downs} down(s)</span>
+                            -
+                            <span>By {this.props.post.data.author}</span>
+                        </div>
+                        {text}
+                        {link}
+                        {comments}
+                    </article>);
+            },
+            onClick: function () {
+                if (this.props.post.data.num_comments > 0) {
+                    if (this.state.comments.length === 0) {
+                        this.state.loadingComment = true;
+                        this.setState(this.state);
+                        this.serverRequest = $.getJSON(Utils.getRedditReactComments(this.props.post.data.id))
+                            .done(function (commentsData) {
+                                if (commentsData && commentsData.length === 2 && commentsData[1].data && commentsData[1].data.children) {
+                                    this.state.open = true;
+                                    this.state.comments = commentsData[1].data.children;
+                                    this.state.loadingComment = false;
+                                    this.setState(this.state);
+                                }
+                            }.bind(this))
+                            .fail(function () {
+                                this.state.loadingComment = false;
+                                this.setState(this.state);
+                                alert('API call failed');
+                            }.bind(this));
+                        return;
+                    }
+                    this.state.open = !this.state.open;
+                    this.setState(this.state);
+                }
+            },
+            onOver: function () {
+                this.state.over = true;
+                this.setState(this.state);
+            },
+            onOut: function () {
+                this.state.over = false;
+                this.setState(this.state);
+            }
+        });
+        var Posts = React.createClass({
+            render: function () {
+                var createPost = function (post, index) {
+                    return <Post key={post.data.id} post={post} isOdd={index % 2 !== 0} />;
+                };
+                return <div id="posts" className="container-fluid">{this.props.posts.map(createPost)}</div>;
+            }
+        });
+        var Reddit = React.createClass({
+            getInitialState: function () {
+                return {
+                    posts: []
+                };
+            },
+
+            componentDidMount: function () {
+                this.serverRequest = $.getJSON(Utils.REDDIT_REACT_POSTS_URL)
+                    .done(function (postsData) {
+                        if (postsData && postsData.data && postsData.data.children) {
+                            this.setState({
+                                posts: postsData.data.children
+                            });
+                        }
+                    }.bind(this))
+                    .fail(function () {
+                        alert('API call failed');
+                    }.bind(this));
+            },
+
+            componentWillUnmount: function () {
+                this.serverRequest.abort();
+            },
+
+            render: function () {
+                return (
+                    <Posts posts={this.state.posts} />
+                );
+            }
+        });
+
+        ReactDOM.render(
+            <Reddit />,
+            document.getElementById('reddit')
+        );
+    </script>
+</body>
+</html>
